@@ -9,6 +9,7 @@ use App\Models\Hold;
 use App\Models\Product;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 final class CreateHoldAction
 {
@@ -32,6 +33,9 @@ final class CreateHoldAction
         if ($affected === 0) {
             throw new Exception('Insufficient stock available.', 409);
         }
+
+        // 2. Clear Cache immediately so GET /products/{id} is accurate
+        Cache::forget("product:{$productId}");
 
         // 2. Stock Secured, Create the Hold Record
         // We use a transaction here just to ensure the Hold creation matches the decrement.
