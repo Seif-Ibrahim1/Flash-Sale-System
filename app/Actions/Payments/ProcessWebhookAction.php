@@ -23,7 +23,11 @@ final class ProcessWebhookAction
         $existingEvent = PaymentEvent::where('idempotency_key', $key)->first();
 
         if ($existingEvent) {
-            Log::info("Idempotency hit for key: {$key}");
+            // STRUCTURED LOGGING: Context array instead of string concatenation
+            Log::info('Webhook idempotency hit', [
+                'key' => $key,
+                'previous_status' => $existingEvent->status
+            ]);
             return $existingEvent->response_summary ?? ['status' => 'already_processed'];
         }
 
@@ -44,6 +48,11 @@ final class ProcessWebhookAction
                 // This forces the Payment Provider to retry this webhook later.
                 // By the time they retry (e.g. in 30s), the Order should exist.
                 if (! $order) {
+                    // STRUCTURED LOGGING: Log the missing order event
+                    Log::warning('Webhook Out-of-Order retry triggered', [
+                        'order_id' => $orderId,
+                        'key' => $key
+                    ]);
                     throw new Exception("Order {$orderId} not found. Triggering retry.", 404);
                 }
 
