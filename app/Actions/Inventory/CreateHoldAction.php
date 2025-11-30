@@ -17,7 +17,7 @@ final readonly class CreateHoldAction
     // 2 minutes expiry as per requirements
     private const HOLD_DURATION_SECONDS = 120;
 
-    public function handle(string $productId, int $quantity): HoldData
+    public function handle(string $productId, int $quantity): Hold
     {
         // WRAP EVERYTHING IN TRANSACTION
         // This ensures "All or Nothing". We never lose stock if the script crashes.

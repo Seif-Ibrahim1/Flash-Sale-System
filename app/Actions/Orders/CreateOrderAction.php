@@ -7,6 +7,7 @@ namespace App\Actions\Orders;
 use App\Enums\OrderStatus;
 use App\Models\Hold;
 use App\Models\Order;
+use App\Exceptions\InventoryException;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -28,11 +29,11 @@ final readonly class CreateOrderAction
             }
 
             if ($hold->isExpired()) {
-                throw new Exception('Hold has expired. Please reserve again.', 400);
+                throw InventoryException::holdExpired();
             }
 
             if ($hold->converted_to_order_at !== null) {
-                throw new Exception('This hold has already been used for an order.', 409);
+                throw InventoryException::holdAlreadyUsed();
             }
 
             // 3. Create the Order
