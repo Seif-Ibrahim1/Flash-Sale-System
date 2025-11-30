@@ -8,6 +8,7 @@ use App\Models\Hold;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 final readonly class ReleaseExpiredHoldsAction
 {
@@ -36,6 +37,13 @@ final readonly class ReleaseExpiredHoldsAction
                 Product::query()
                     ->where('id', $productId)
                     ->increment('available_stock', $qtyToRestore);
+
+                // Invalidate Cache
+                try {
+                    Cache::forget("product:{$productId}");
+                } catch (\Exception $e) {
+                    Log::warning("Failed to clear cache for product {$productId}");
+                }
 
                 Log::info("Restored {$qtyToRestore} stock for Product {$productId}");
             }
