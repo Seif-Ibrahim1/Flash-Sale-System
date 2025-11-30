@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\OrderController;
 
 // 1. Get Product Details (High-speed read)
 Route::get('/products/{id}', [ProductController::class, 'show']);
@@ -11,3 +12,5 @@ Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::post('/holds', [ProductController::class, 'reserve']);
 
 Route::post('/payments/webhook', [PaymentWebhookController::class, 'handle']);
+
+Route::post('/orders', [OrderController::class,'store']);
