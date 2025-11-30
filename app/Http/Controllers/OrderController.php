@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\Orders\CreateOrderAction;
 use App\Http\Requests\StoreOrderRequest;
+use App\Http\Resources\OrderResource;
 use Exception;
 use Illuminate\Http\JsonResponse;
+
 
 class OrderController extends Controller
 {
@@ -18,8 +20,7 @@ class OrderController extends Controller
 
             return response()->json([
                 'message' => 'Order created successfully. Proceed to payment.',
-                'order_id' => $order->id,
-                'amount' => $order->total_amount,
+                'data' => new OrderResource($order),
             ], 201);
 
         } catch (Exception $e) {

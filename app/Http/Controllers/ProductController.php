@@ -7,18 +7,17 @@ namespace App\Http\Controllers;
 use App\Actions\Inventory\CreateHoldAction;
 use App\Actions\Inventory\GetProductAction;
 use App\Http\Requests\HoldRequest;
+use App\Http\Resources\HoldResource;
+use App\Http\Resources\ProductResource;
 use Exception;
 use Illuminate\Http\JsonResponse;
 
 class ProductController extends Controller
 {
-    public function show(string $id, GetProductAction $action): JsonResponse
+    public function show(string $id, GetProductAction $action): ProductResource
     {
-        $product = $action->handle($id);
-
-        return response()->json([
-            'data' => $product,
-        ]);
+        // Automatically wrapped in 'data' key by Laravel
+        return new ProductResource($action->handle($id));
     }
 
     public function reserve(HoldRequest $request, CreateHoldAction $action): JsonResponse
@@ -33,7 +32,7 @@ class ProductController extends Controller
 
             return response()->json([
                 'message' => 'Hold created successfully',
-                'data' => $hold,
+                'data' => new HoldResource($hold),
             ], 201); // 201 Created
 
         } catch (Exception $e) {
