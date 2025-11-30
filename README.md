@@ -1,59 +1,115 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+Flash Sale API (Laravel 12 Enterprise Edition)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A high-concurrency, atomic inventory system designed to handle flash sales without overselling.
 
-## About Laravel
+## **🏗 Architectural Decisions & Standards**
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### **1\. Concurrency Strategy: Database Atomicity**
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+We strictly avoid "Read-Modify-Write" cycles in PHP. Instead, we rely on the ACID guarantees of the InnoDB engine.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+* **Stock Reservation:** Uses a single atomic query:  
+  UPDATE products SET available\_stock \= available\_stock \- ?   
+  WHERE id \= ? AND available\_stock \>= ?
 
-## Learning Laravel
+  This eliminates the need for complex distributed locks (Redlock) while guaranteeing correctness at the storage layer. If the query affects 0 rows, the request fails immediately.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### **2\. Design Pattern: Action-Domain-Responder (ADR)**
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+We move away from "Fat Controllers" to Stateless, Readonly Actions.
 
-## Laravel Sponsors
+* **Actions:** final readonly classes encapsulating single business rules (e.g., CreateHoldAction).  
+* **Controllers:** "Skinny" endpoints that delegate to Actions and return strictly typed JsonResources.  
+* **FormRequests:** Validation is decoupled from the controller layer.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### **3\. Distributed Consistency (Webhooks)**
 
-### Premium Partners
+To handle **Out-of-Order Webhooks** (e.g., webhook arrives before the Order transaction commits):
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+* **Strategy:** **Fail Fast & Retry.**  
+* If the webhook handler cannot find the Order ID, it throws a 404 Not Found.  
+* This signals the Payment Provider (e.g., Stripe) to **retry** the delivery (Exponential Backoff).  
+* This ensures strict consistency without needing complex "Orphaned Event" tables.
 
-## Contributing
+### **4\. Performance (Cache-Aside)**
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+* **Read Heavy:** GET /products/{id} is served via Redis (Cache::remember).  
+* **Write Heavy:** Any stock change (Hold created or released) immediately invalidates the cache key to ensure data freshness.
 
-## Code of Conduct
+## **🚀 Setup & Testing**
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### **1\. Configuration (Crucial)**
 
-## Security Vulnerabilities
+The application **requires MySQL** (InnoDB) to handle row-level locking correctly. SQLite is not supported for the concurrency tests.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+1. **Install Dependencies:**  
+   composer install
 
-## License
+2. **Environment Setup:**  
+   cp .env.example .env
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+3. Database Configuration:  
+   Open .env and ensure your database credentials are correct. You must create a database named flash\_sale (or update the config to match your local DB).  
+   DB\_CONNECTION=mysql  
+   DB\_HOST=127.0.0.1  
+   DB\_PORT=3306  
+   DB\_DATABASE=flash\_sale  \<-- Ensure this DB exists  
+   DB\_USERNAME=root        \<-- Update if needed  
+   DB\_PASSWORD=            \<-- Update if needed
+
+4. **Initialize App:**  
+   php artisan migrate:fresh \--seed
+
+### **2\. Quick Start (For Reviewers)**
+
+Run this single command to reset the database and get ready-to-use curl snippets for every endpoint:
+
+php artisan demo:setup
+
+### **3\. Concurrency Proof (The Stress Test)**
+
+We run **30 parallel processes** against a stock of **10** to prove the system cannot oversell. This runs at the OS level to simulate true parallel traffic.
+
+php artisan stress:inventory \--processes=30
+
+**Expected Result:**
+
+* ✅ Available Stock: 0  
+* ✅ Total Holds: 10  
+* ✅ Rejected: 20
+
+### **4\. Automated Logic Tests**
+
+Runs Unit and Feature tests for Idempotency, Expiry, and Order Logic.
+
+php artisan test
+
+### **5\. Manual Expiry Simulation**
+
+To release expired holds and restore stock:
+
+php artisan holds:release
+
+## **📊 Metrics & Observability**
+
+All logs use **Structured Context Arrays** for ingestion by Datadog/CloudWatch.
+
+* **Concurrency Failures:** Logged as InventoryException (409 Conflict).  
+* **Idempotency Hits:** Logged via ProcessWebhookAction when a duplicate webhook is detected.  
+* **Stock Restoration:** The holds:release command logs exactly how many items were returned to the pool (stock\_restored).
+
+## **🛠 API Endpoints**
+
+| Method | Endpoint | Description |
+| :---- | :---- | :---- |
+| GET | /api/products/{id} | High-speed read (Cached). Returns ProductResource. |
+| POST | /api/holds | Atomic stock reservation. Returns HoldResource. |
+| POST | /api/orders | Converts Hold to Order. Returns OrderResource. |
+| POST | /api/payments/webhook | Idempotent payment processing. Updates Order status. |
+
+### **Tech Stack**
+
+* **Framework:** Laravel 12.x  
+* **Language:** PHP 8.4+ (Strict Types Enforced)  
+* **Database:** MySQL 8.0+  
+* **Cache:** Redis (Recommended) / Database (Fallback)
