@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\PaymentEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 final class ProcessWebhookAction
 {
@@ -38,6 +39,13 @@ final class ProcessWebhookAction
             if ($orderId) {
                 // Lock the order to prevent double-updates
                 $order = Order::lockForUpdate()->find($orderId);
+
+                // If the order does not exist yet, we MUST fail this request.
+                // This forces the Payment Provider to retry this webhook later.
+                // By the time they retry (e.g. in 30s), the Order should exist.
+                if (! $order) {
+                    throw new Exception("Order {$orderId} not found. Triggering retry.", 404);
+                }
 
                 if ($order && $order->status === OrderStatus::PENDING) {
                     if ($status === 'success') {
