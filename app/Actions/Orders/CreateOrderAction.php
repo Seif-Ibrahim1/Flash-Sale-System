@@ -10,7 +10,7 @@ use App\Models\Order;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
-final class CreateOrderAction
+final readonly class CreateOrderAction
 {
     /**
      * Converts a Hold into a Pending Order.

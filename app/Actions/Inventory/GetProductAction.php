@@ -8,7 +8,7 @@ use App\Models\Product;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Cache;
 
-final class GetProductAction
+final readonly class GetProductAction
 {
     /**
      * @throws ModelNotFoundException

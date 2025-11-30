@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
-final class ProcessWebhookAction
+final readonly class ProcessWebhookAction
 {
     /**
      * @return array The response body to send back to the provider

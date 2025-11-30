@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Exceptions\InventoryException;
 use Illuminate\Support\Facades\Log;
 
-final class CreateHoldAction
+final readonly class CreateHoldAction
 {
     // 2 minutes expiry as per requirements
     private const HOLD_DURATION_SECONDS = 120;

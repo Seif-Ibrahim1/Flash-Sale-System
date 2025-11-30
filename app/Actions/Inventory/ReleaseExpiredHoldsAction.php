@@ -9,7 +9,7 @@ use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-final class ReleaseExpiredHoldsAction
+final readonly class ReleaseExpiredHoldsAction
 {
     public function handle(): int
     {
