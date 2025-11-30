@@ -7,18 +7,16 @@ namespace App\Actions\Inventory;
 use App\Data\HoldData;
 use App\Models\Hold;
 use App\Models\Product;
-use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Exceptions\InventoryException;
+use Illuminate\Support\Facades\Log;
 
 final class CreateHoldAction
 {
     // 2 minutes expiry as per requirements
     private const HOLD_DURATION_SECONDS = 120;
 
-    /**
-     * @throws Exception If stock is insufficient
-     */
     public function handle(string $productId, int $quantity): HoldData
     {
         // WRAP EVERYTHING IN TRANSACTION
@@ -34,25 +32,34 @@ final class CreateHoldAction
                 ->decrement('available_stock', $quantity);
 
             if ($affected === 0) {
-                throw new Exception('Insufficient stock available.', 409);
+                throw InventoryException::insufficientStock($productId);
             }
-
-            // 2. Clear Cache immediately so GET /products/{id} is accurate
-            Cache::forget("product:{$productId}");
 
             // 2. Stock Secured, Create the Hold Record
             // We use a transaction here just to ensure the Hold creation matches the decrement.
             // If this fails (e.g., DB crash), we technically lose stock, but that's what the
             // "ReleaseExpiredHolds" job is for (cleanup).
-            $hold = DB::transaction(function () use ($productId, $quantity) {
-                return Hold::create([
+            try {
+                $hold = Hold::create([
                     'product_id' => $productId,
                     'quantity' => $quantity,
                     'expires_at' => now()->addSeconds(self::HOLD_DURATION_SECONDS),
                 ]);
-            });
+            } catch (\Exception $e) {
+                throw $e;
+            }
 
-            return HoldData::fromModel($hold);
+            try {
+                Cache::forget("product:{$productId}");
+            } catch (\Exception $e) {
+                // Structured Logging
+                Log::warning('Cache clear failed', [
+                    'product_id' => $productId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            return $hold;
         });
     }
 }

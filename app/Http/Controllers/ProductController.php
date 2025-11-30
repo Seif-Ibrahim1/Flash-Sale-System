@@ -9,7 +9,6 @@ use App\Actions\Inventory\GetProductAction;
 use App\Http\Requests\HoldRequest;
 use App\Http\Resources\HoldResource;
 use App\Http\Resources\ProductResource;
-use Exception;
 use Illuminate\Http\JsonResponse;
 
 class ProductController extends Controller
@@ -26,21 +25,12 @@ class ProductController extends Controller
         $productId = $request->validated('product_id');
         $qty = (int) $request->validated('qty');
 
-        try {
-            // 2. Delegate to Business Logic (Action)
-            $hold = $action->handle($productId, $qty);
+        // 2. Delegate to Business Logic (Action)
+        $hold = $action->handle($productId, $qty);
 
-            return response()->json([
-                'message' => 'Hold created successfully',
-                'data' => new HoldResource($hold),
-            ], 201); // 201 Created
-
-        } catch (Exception $e) {
-            // 3. Handle Business Failures (e.g., Stock ran out)
-            // We return 409 Conflict for concurrency/state issues.
-            return response()->json([
-                'error' => $e->getMessage(),
-            ], $e->getCode() ?: 409);
-        }
+        return response()->json([
+            'message' => 'Hold created successfully',
+            'data' => new HoldResource($hold),
+        ], 201); // 201 Created
     }
 }
