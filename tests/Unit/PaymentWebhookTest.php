@@ -12,11 +12,23 @@ use App\Models\PaymentEvent;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Exception;
 
 class PaymentWebhookTest extends TestCase
 {
     // Use RefreshDatabase to reset DB for every test method
     use RefreshDatabase;
+
+    public function test_it_throws_404_if_order_missing_forcing_retry(): void
+    {
+        $action = new ProcessWebhookAction();
+
+        // Expect failure so provider retries
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(404);
+
+        $action->handle('key_missing_order', ['order_id' => 'missing_id', 'status' => 'success']);
+    }
 
     public function test_it_processes_payment_success_idempotently(): void
     {
